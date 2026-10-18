@@ -1,4 +1,3 @@
-from agents.orchestrator import REQUIRED_FIELDS
 '''
 Exit     | When it happens                                  | Final status
 Success   Synthesizer found a pair within budget	        done
@@ -6,12 +5,12 @@ ask_user  Orchestrator couldn’t extract all required fields	needs_info
 give_up   Retry limit reached, still nothing within budget	failed
 '''
 def ask_user_node(state: dict) -> dict:
-    missing = [f for f in REQUIRED_FIELDS if not state.get(f)]
-    message = (
-        "I couldn't plan your trip yet because some details are missing: "
-        + ", ".join(missing)
-        + ". Please include them in your request and try again."
-    )
+    questions = state.get("clarifying_questions") or []
+    if questions:
+        lines = [f"{i}. {q}" for i, q in enumerate(questions, start=1)]
+        message = "I need a bit more information to plan your trip:\n" + "\n".join(lines)
+    else:
+        message = "I need a bit more information to plan your trip. Could you add more details?"
     return {"final_recommendation": message, "status": "needs_info"}
 
 def give_up_node(state: dict) -> dict:
