@@ -4,7 +4,9 @@ class TravelPlannerState(TypedDict):
     # input
     user_request: str
     destination: Optional[str]
-    origin: Optional[str] # Optional is a 
+    destination_code: Optional[str]
+    origin: Optional[str]
+    origin_code: Optional[str]
     start_date: Optional[str]
     end_date: Optional[str]
     budget: Optional[float]

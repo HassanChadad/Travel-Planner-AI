@@ -1,15 +1,5 @@
-from langchain_openai import ChatOpenAI
-from pydantic import BaseModel, Field
-
 from tools.flight_search import search_flights
 from tools.hotel_search import search_hotels
-
-class AirportCodes(BaseModel):
-    origin_code: str = Field(description="3-letter IATA code of the main airport for the origin city")
-    destination_code: str = Field(description="3-letter IATA code of the main airport for the destination city")
-
-llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-code_llm = llm.with_structured_output(AirportCodes)
 
 # search_node follows the standard node pattern: read state, do work, return only the keys it changed.
 def search_node(state: dict) -> dict:
@@ -19,17 +9,10 @@ def search_node(state: dict) -> dict:
     if cheapest_first:
         print(f"No viable flight + hotel combos found within budget. Searching again (attempt={search_attempts}), this time prioritizing cheapest options.")
 
-    codes = code_llm.invoke(
-        f"Give the main IATA airport codes for origin '{state['origin']}' "
-        f"and destination '{state['destination']}'."
-    )
-
-    print(f"Airport codes: {codes}")
-
     # The tools are called with .invoke({...}) because the @tool decorator turned them into LangChain tools that take a dict of arguments.
     flights = search_flights.invoke({
-        "departure_id": codes.origin_code,
-        "arrival_id": codes.destination_code,
+        "departure_id": state["origin_code"],
+        "arrival_id": state["destination_code"],
         "outbound_date": state["start_date"],
         "return_date": state["end_date"],
         "cheapest_first": cheapest_first,

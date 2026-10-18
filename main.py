@@ -1,9 +1,10 @@
 import sys
+from graph import build_graph
 from dotenv import load_dotenv
 
 load_dotenv()
 
-from graph import build_graph
+MAX_CLARIFICATION_ROUNDS = 3
 
 def run(user_request: str) -> dict:
     app = build_graph()
@@ -22,9 +23,24 @@ def run(user_request: str) -> dict:
 
     return state
 
+def plan_trip(request: str) -> dict:
+    state = run(request)
+    rounds = 0
+
+    while state["status"] == "needs_info" and rounds < MAX_CLARIFICATION_ROUNDS:
+        rounds += 1
+        print(f"\nI need a few details (round {rounds} of {MAX_CLARIFICATION_ROUNDS}):")
+        for question in state["clarifying_questions"]:
+            answer = input(f"{question} ").strip()
+            if answer:
+                request += f"\nClarification: {question} Answer: {answer}"
+        state = run(request)
+
+    return state
+
 if __name__ == "__main__":
     request = " ".join(sys.argv[1:]) or input("Describe your trip: ")
-    final_state = run(request)
+    final_state = plan_trip(request)
 
     print("\n" + "=" * 60)
     print(f"Status: {final_state['status']}\n")

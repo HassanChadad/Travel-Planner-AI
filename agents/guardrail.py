@@ -8,7 +8,7 @@ from openai import OpenAI
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 
-MAX_INPUT_CHARS = 1000
+MAX_INPUT_CHARS = 1500
 
 moderation_client = OpenAI()
 
