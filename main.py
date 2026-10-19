@@ -1,5 +1,6 @@
 import sys
 from graph import build_graph
+from agents.orchestrator import describe_airport
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -30,6 +31,7 @@ def plan_trip(request: str) -> dict:
     while state["status"] == "needs_info" and rounds < MAX_CLARIFICATION_ROUNDS:
         rounds += 1
         print(f"\nI need a few details (round {rounds} of {MAX_CLARIFICATION_ROUNDS}):")
+        print(f"{state.get('clarifying_questions', [])}")
         for question in state["clarifying_questions"]:
             answer = input(f"{question} ").strip()
             if answer:
@@ -44,4 +46,8 @@ if __name__ == "__main__":
 
     print("\n" + "=" * 60)
     print(f"Status: {final_state['status']}\n")
+    
+    if final_state.get("origin_code") and final_state.get("destination_code"):
+        print(f"Route: {describe_airport(final_state['origin_code'])} -> {describe_airport(final_state['destination_code'])}\n")
+
     print(final_state["final_recommendation"])

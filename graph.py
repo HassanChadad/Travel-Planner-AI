@@ -7,6 +7,7 @@ from agents.itinerary_agent import itinerary_node
 from agents.synthesizer import synthesizer_node, route_after_synthesizer
 from agents.exits import ask_user_node, give_up_node, reject_node
 from agents.guardrail import guardrail_node, route_after_guardrail
+from agents.search_agent import search_node, route_after_search
 
 """
 graph.py - wires the agents into one runnable LangGraph workflow.
@@ -101,7 +102,12 @@ def build_graph():
         {"search": "search", "ask_user": "ask_user"}, # "search": "search" (<orchestrator_return_value:node>) means if the orchestrator returns "search", go to the search node. "ask_user": "ask_user" means if the orchestrator returns "ask_user", go to the ask_user node. Where the key is the return value of the orchestrator and the value is the name of the node to go to next.
     )
 
-    graph.add_edge("search", "itinerary")
+    graph.add_conditional_edges(
+        "search",
+        route_after_search,
+        {"itinerary": "itinerary", "synthesizer": "synthesizer"},
+    )
+
     graph.add_edge("itinerary", "synthesizer")
 
     graph.add_conditional_edges(

@@ -1,8 +1,17 @@
 from datetime import datetime
+from utils.common import num_or_inf
 from langchain_openai import ChatOpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
+
+MAX_SEARCH_ATTEMPTS = 2
+
+SORT_KEYS = {
+    "price":    lambda f: (num_or_inf(f.get("price")), num_or_inf(f.get("total_duration_min")), num_or_inf(f.get("stops"))),
+    "stops":    lambda f: (num_or_inf(f.get("stops")), num_or_inf(f.get("price")), num_or_inf(f.get("total_duration_min"))),
+    "duration": lambda f: (num_or_inf(f.get("total_duration_min")), num_or_inf(f.get("price")), num_or_inf(f.get("stops"))),
+}
 
 llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.3)
 
@@ -30,36 +39,47 @@ def find_viable_combos(flights: list, hotels: list, budget: float, nights: int) 
     combos.sort(key=lambda c: (-(c["hotel"].get("rating") or 0), c["total"]))
     return combos
 
-def synthesizer_node(state: dict) -> dict:
-    start = datetime.strptime(state["start_date"], "%Y-%m-%d")
-    end = datetime.strptime(state["end_date"], "%Y-%m-%d")
-    nights = (end - start).days
+def find_viable_flights(flights: list, budget: float, sort_by=None) -> list:
+    affordable = [f for f in flights if f.get("price") is not None and f["price"] <= budget]
+    return [{"flight": f, "hotel": None, "total": f["price"]} for f in sort_flights(affordable, sort_by)]
 
-    combos = find_viable_combos(
-        state.get("flight_options") or [],
-        state.get("hotel_options") or [],
-        state["budget"],
-        nights,
-    )
+def sort_flights(flights: list, sort_by) -> list:
+    return sorted(flights, key=SORT_KEYS.get(sort_by, SORT_KEYS["price"]))
+
+def synthesizer_node(state: dict) -> dict:
+    flights = state.get("flight_options") or []
+
+    if state.get("include_hotels", True):
+        start = datetime.strptime(state["start_date"], "%Y-%m-%d")
+        end = datetime.strptime(state["end_date"], "%Y-%m-%d")
+        combos = find_viable_combos(
+            flights, state.get("hotel_options") or [], state["budget"], (end - start).days
+        )
+    else:
+        combos = find_viable_flights(flights, state["budget"], state.get("sort_by"))
 
     if not combos:
         return {"status": "needs_retry"}
 
     best = combos[0]
-    prompt = (
-        f"Write a friendly trip recommendation for {state['destination']}.\n"
-        f"Budget: ${state['budget']:.0f}. Chosen flight + hotel total: ${best['total']:.0f}.\n"
-        f"Flight: {best['flight']}\n"
-        f"Hotel: {best['hotel']}\n"
-        f"Itinerary: {state.get('itinerary_draft')}\n\n"
-        "Summarize the flight, hotel, and total cost versus budget, then give a short "
-        "day-by-day overview. Use only the data above and do not recalculate any prices."
+    parts = [
+        f"Write a friendly trip recommendation for {state['destination']}.",
+        f"Budget: ${state['budget']:.0f}. Chosen total: ${best['total']:.0f}.",
+        f"Flight: {best['flight']}",
+    ]
+    if best["hotel"]:
+        parts.append(f"Hotel: {best['hotel']}")
+    if state.get("itinerary_draft"):
+        parts.append(f"Itinerary: {state['itinerary_draft']}")
+    if state.get("travelers_assumed"):
+        parts.append("Mention that this assumes 1 adult traveler.")
+    parts.append(
+        "Summarize only the items listed above, including total cost versus budget. "
+        "Use only this data and do not recalculate any prices."
     )
-    response = llm.invoke(prompt)
 
+    response = llm.invoke("\n".join(parts))
     return {"final_recommendation": response.content, "status": "done"}
-
-MAX_SEARCH_ATTEMPTS = 2
 
 # A function that determines the next step in the itinerary planning process based on the current state.
 # If the status is "done", it returns "end" to indicate that the process is complete. 
